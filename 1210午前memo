@@ -1,0 +1,131 @@
+##コード
+from nextcaptcha import NextCaptchaAPI
+import logging
+
+# ログの設定
+logging.basicConfig(level=logging.INFO)
+
+# APIキーの設定
+CLIENT_KEY = "next_af0b8007323cf8e008809f3db2da50322f"
+WEBSITE_URL = "https://www.google.com/recaptcha/api2/demo"
+WEBSITE_KEY = "6Le-wvkSAAAAAPBMRTvw0Q4Muexq9bi0DJwx_mJ-"
+
+api = NextCaptchaAPI(client_key=CLIENT_KEY)
+
+try:
+    result = api.recaptchav2(website_url=WEBSITE_URL, website_key=WEBSITE_KEY)
+    if "status" in result:
+        if result["status"] == "ready":
+            print(f"reCAPTCHA solved: {result['solution']}")
+        else:
+            print(f"Failed to solve reCAPTCHA: {result['error']}")
+    else:
+        logging.error(f"Error: {result}")
+        print(f"Unexpected response format: {result}")
+except Exception as e:
+    logging.error(f"An error occurred: {e}")
+    print(f"An error occurred: {e}")
+
+
+####
+
+###解説
+このエラーメッセージは、以下の2つの問題のいずれかが原因で発生しています。
+
+1. **無効なクライアントキー**:
+   - エラーコード `ERROR_KEY_DOES_NOT_EXIST` は、提供されたクライアントキーが無効であることを示しています。クライアントキーが正しいことを確認してください。
+
+2. **アカウント残高不足**:
+   - メッセージに「your account balance is insufficient to complete this task」とあるため、アカウントの残高が不足している可能性があります。NextCaptchaのダッシュボードで残高を確認し、必要に応じてチャージしてください。
+
+### 修正手順
+
+1. **クライアントキーの確認**:
+   - NextCaptchaのダッシュボードにログインし、クライアントキー（clientKey）が正しいことを確認します。
+   - ダッシュボードから新しいクライアントキーを生成してみるのも一つの手です。
+
+2. **アカウント残高の確認とチャージ**:
+   - NextCaptchaのダッシュボードでアカウント残高を確認し、不足している場合はチャージを行います。
+
+### 修正したコード
+
+以下の修正コードを使って、エラーメッセージをさらに詳細にチェックし、正しいクライアントキーを使用しているか確認してください。
+
+```python
+from nextcaptcha import NextCaptchaAPI
+import logging
+
+# ログの設定
+logging.basicConfig(level=logging.INFO)
+
+# APIキーの設定
+CLIENT_KEY = "YOUR_CLIENT_KEY"
+WEBSITE_URL = "https://www.google.com/recaptcha/api2/demo"
+WEBSITE_KEY = "6Le-wvkSAAAAAPBMRTvw0Q4Muexq9bi0DJwx_mJ-"
+
+api = NextCaptchaAPI(client_key=CLIENT_KEY)
+
+try:
+    result = api.recaptchav2(website_url=WEBSITE_URL, website_key=WEBSITE_KEY)
+    if 'status' in result:
+        if result["status"] == "ready":
+            print(f"reCAPTCHA solved: {result['solution']}")
+        else:
+            print(f"Failed to solve reCAPTCHA: {result['error']}")
+    else:
+        logging.error(f"Error: {result}")
+        print(f"Unexpected response format: {result}")
+except Exception as e:
+    logging.error(f"An error occurred: {e}")
+    print(f"An error occurred: {e}")
+```
+
+必要なアカウントの確認とチャージを行った上で、もう一度スクリプトを実行してみてください。それでも問題が解決しない場合は、NextCaptchaのサポートに問い合わせることをおすすめします。他に質問があれば教えてくださいね。
+#########################
+素晴らしい！ついに成功しましたね。`reCAPTCHA`が正しく解決され、解決策が返ってきています。
+
+次に進むためのポイントをいくつかご紹介します。
+
+### 取得した`gRecaptchaResponse`を利用する
+CAPTCHAの解決策である`gRecaptchaResponse`を使って、フォームの送信やさらなる処理を行うことができます。例えば、ウェブページに埋め込まれたフォームに対してこのトークンを送信するコードを追加します。
+
+### サンプルコード
+以下に、取得した`gRecaptchaResponse`を使ったフォーム送信の例を示します。
+
+```python
+import requests
+
+# CAPTCHA解決策
+g_recaptcha_response = result['solution']['gRecaptchaResponse']
+
+# フォームデータに解決策を追加
+form_data = {
+    'field1': 'value1',
+    'field2': 'value2',
+    'g-recaptcha-response': g_recaptcha_response
+}
+
+# フォームの送信
+response = requests.post('https://example.com/form-submit', data=form_data)
+
+if response.status_code == 200:
+    print("Form submitted successfully!")
+else:
+    print(f"Failed to submit the form: {response.status_code}")
+```
+
+### 説明
+1. **`gRecaptchaResponse`の取得**:
+   - `gRecaptchaResponse`を`result`から取得します。
+   ```python
+   g_recaptcha_response = result['solution']['gRecaptchaResponse']
+   ```
+
+2. **フォームデータに解決策を追加**:
+   - フォームデータに取得したCAPTCHA解決策を含めます。
+
+3. **フォームの送信**:
+   - `requests`ライブラリを使ってフォームを送信し、結果を確認します。
+
+このようにして、CAPTCHAの解決策を使ってウェブページの操作を続けることができます。何か他に具体的なサポートや質問があれば、ぜひ教えてくださいね！
+#############################################
