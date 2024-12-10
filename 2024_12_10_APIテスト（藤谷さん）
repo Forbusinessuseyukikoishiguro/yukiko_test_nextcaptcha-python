@@ -1,0 +1,30 @@
+from nextcaptcha import NextCaptchaAPI
+import logging
+
+# ログの設定
+logging.basicConfig(level=logging.INFO)
+
+# APIキーの設定
+CLIENT_KEY = "next_af0b8007323cf8e008809f3db2da50322f"
+WEBSITE_URL = "https://www.google.com/recaptcha/api2/demo"
+WEBSITE_KEY = "6Le-wvkSAAAAAPBMRTvw0Q4Muexq9bi0DJwx_mJ-"
+
+api = NextCaptchaAPI(client_key=CLIENT_KEY)
+
+try:
+    result = api.recaptchav2(website_url=WEBSITE_URL, website_key=WEBSITE_KEY)
+    if "status" in result:
+        if result["status"] == "ready":
+            print(f"reCAPTCHA solved: {result['solution']}")
+        else:
+            print(f"Failed to solve reCAPTCHA: {result['error']}")
+    else:
+        logging.error(f"Error: {result}")
+        print(f"Unexpected response format: {result}")
+except Exception as e:
+    logging.error(f"An error occurred: {e}")
+    print(f"An error occurred: {e}")
+
+
+##MEMO##
+##APIのデモクレジットが動かないため、藤谷さんに作ってもらったAPIをつかって、APIテストをつくりました。
