@@ -1,0 +1,90 @@
+import requests
+import logging
+import time
+
+
+# ログの設定
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.FileHandler("recaptcha_v2_enterprise_solver.log"),
+        logging.StreamHandler(),
+    ],
+)
+
+
+# 必要な情報の設定
+CLIENT_KEY = "next_b6e68427ad2a68a67ad26c6b1888c744a8"  # NextCaptchaのAPIキー
+WEBSITE_URL = "https://2captcha.com/ja/demo/recaptcha-v2"  # 解決対象のURL
+WEBSITE_KEY_V3 = "6LfD3PIbAAAAAJs_eEHvoOl75_83eXSqpPSRFJ_u"  # サイトキー
+
+
+def solve_recaptcha_v2_enterprise():
+    try:
+        # タスク作成のリクエストペイロード
+        task_payload = {
+            "type": "RecaptchaV2EnterpriseTaskProxyless",  # タスクタイプ
+            "websiteURL": WEBSITE_URL,  # 解決対象のURL
+            "websiteKey": WEBSITE_KEY_V3,  # サイトキー
+        }
+
+        logging.info(f"Creating reCAPTCHA V2 Enterprise task: {task_payload}")
+
+        # タスク作成リクエスト
+        response = requests.post(
+            "https://api.nextcaptcha.com/createTask",
+            json={"clientKey": CLIENT_KEY, "task": task_payload},
+            timeout=10,
+        )
+        response.raise_for_status()
+        result = response.json()
+
+        # エラーチェック
+        if result.get("errorId", 0) != 0:
+            logging.error(
+                f"API Error: {result.get('errorCode')} - {result.get('errorDescription')}"
+            )
+            return None
+
+        task_id = result.get("taskId")
+        if not task_id:
+            logging.error("Failed to create task: No taskId received.")
+            return None
+
+        # 解決結果を待機
+        for attempt in range(1, 16):  # 最大15回再試行
+            logging.info(
+                f"Attempt {attempt}/15: Waiting for task {task_id} to be solved..."
+            )
+            time.sleep(10)  # 10秒待機
+            response = requests.post(
+                "https://api.nextcaptcha.com/getTaskResult",
+                json={"clientKey": CLIENT_KEY, "taskId": task_id},
+                timeout=10,
+            )
+            response.raise_for_status()
+            result = response.json()
+
+            if result.get("errorId") == 0 and result.get("status") == "ready":
+                logging.info(f"Task {task_id} solved successfully.")
+                return result.get("solution", {}).get("gRecaptchaResponse")
+
+        logging.error(f"Task {task_id} could not be solved after 15 retries.")
+        return None
+
+    except Exception as e:
+        logging.error(f"An error occurred: {e}")
+        return None
+
+
+# 実行部分
+recaptcha_response = solve_recaptcha_v2_enterprise()
+
+
+if recaptcha_response:
+    logging.info(f"Obtained reCAPTCHA V2 Enterprise token: {recaptcha_response}")
+    print(f"reCAPTCHA V2 Enterprise token: {recaptcha_response}")
+else:
+    logging.error("Failed to obtain a reCAPTCHA V2 Enterprise token.")
+    print("Failed to obtain a reCAPTCHA V2 Enterprise token.")
