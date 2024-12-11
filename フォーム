@@ -1,0 +1,17 @@
+import requests
+
+# 送信先のURL
+form_submit_url = "https://httpbin.org/post"
+
+# 送信するデータ（キーと値のペア）
+form_data = {
+    "username": "example_user",
+    "password": "example_pass"
+}
+
+# フォームを送信
+response = requests.post(form_submit_url, data=form_data)
+
+# サーバーからのレスポンスを表示
+print("ステータスコード:", response.status_code)  # ステータスコード（例: 200は成功）
+print("レスポンス本文:", response.text)  # サーバーのレスポンス内容
