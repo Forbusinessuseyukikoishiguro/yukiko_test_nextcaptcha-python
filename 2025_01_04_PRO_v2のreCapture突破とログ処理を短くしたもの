@@ -1,0 +1,105 @@
+import time
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+import requests
+import logging
+
+# ログの設定（簡略化）
+logging.basicConfig(
+    level=logging.INFO,  # INFO レベルのみ
+    format="%(message)s",  # シンプルなフォーマット
+    handlers=[logging.FileHandler("recaptcha_solver.log"), logging.StreamHandler()],
+)
+
+# APIキーとURL設定
+CLIENT_KEY = "next_b6e68427ad2a68a67ad26c6b1888c744a8"
+WEBSITE_URL = "https://takblog.site/sample/recaptcha-v2/"
+WEBSITE_KEY_V2 = "6Lfgl7AcAAAAAEFuErhBiwdPXZvivGlqkYBA7p7Y"
+
+
+# reCAPTCHA v2解決関数
+def solve_recaptcha_v2():
+    try:
+        task_payload = {
+            "type": "RecaptchaV2TaskProxyless",
+            "websiteURL": WEBSITE_URL,
+            "websiteKey": WEBSITE_KEY_V2,
+        }
+        response = requests.post(
+            "https://api.nextcaptcha.com/createTask",
+            json={"clientKey": CLIENT_KEY, "task": task_payload},
+            timeout=10,
+        )
+        response.raise_for_status()
+        result = response.json()
+
+        task_id = result.get("taskId")
+        if not task_id:
+            logging.info("解決失敗: タスク作成エラー")
+            return None
+
+        for _ in range(20):
+            time.sleep(5)
+            response = requests.post(
+                "https://api.nextcaptcha.com/getTaskResult",
+                json={"clientKey": CLIENT_KEY, "taskId": task_id},
+                timeout=10,
+            )
+            response.raise_for_status()
+            result = response.json()
+
+            if result.get("errorId") == 0 and result.get("status") == "ready":
+                logging.info("解決成功")
+                return result.get("solution", {}).get("gRecaptchaResponse")
+
+        logging.info("解決失敗: タスク解決できず")
+        return None
+    except Exception:
+        logging.info("解決失敗: エラー発生")
+        return None
+
+
+# reCAPTCHAトークンを取得してフォームを送信
+recaptcha_v2_response = solve_recaptcha_v2()
+if recaptcha_v2_response:
+    logging.info("トークン取得成功")
+    print("reCAPTCHA 解決成功")
+
+    # Seleniumを使ってブラウザを操作
+    chrome_options = Options()
+    driver = webdriver.Chrome(
+        service=Service(ChromeDriverManager().install()), options=chrome_options
+    )
+
+    try:
+        driver.get(WEBSITE_URL)
+
+        recaptcha_input = driver.find_element(By.NAME, "g-recaptcha-response")
+        driver.execute_script(
+            "arguments[0].value = arguments[1];", recaptcha_input, recaptcha_v2_response
+        )
+
+        submit_button = driver.find_element(By.XPATH, "//*[text()='送信']")
+        submit_button.click()
+
+        print("フォーム送信成功")
+        logging.info("フォーム送信成功")
+
+        # 送信後の画面遷移を確認
+        WebDriverWait(driver, 100).until(EC.title_contains("遷移先ページのタイトル"))
+        print("画面遷移成功")
+        logging.info("画面遷移成功")
+
+    except Exception:
+        print("フォーム送信エラー")
+        logging.info("フォーム送信エラー")
+    finally:
+        driver.quit()
+else:
+    logging.info("トークン取得失敗")
+    print("reCAPTCHA 解決失敗")
