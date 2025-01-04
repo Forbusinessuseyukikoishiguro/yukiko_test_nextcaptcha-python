@@ -1,0 +1,129 @@
+import time  # ここを追加
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+import requests
+import logging
+
+# ログの設定
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[logging.FileHandler("recaptcha_solver.log"), logging.StreamHandler()],
+)
+
+# APIキーとURL設定
+CLIENT_KEY = "next_b6e68427ad2a68a67ad26c6b1888c744a8"
+WEBSITE_URL = "https://takblog.site/sample/recaptcha-v2/"
+WEBSITE_KEY_V2 = "6Lfgl7AcAAAAAEFuErhBiwdPXZvivGlqkYBA7p7Y"
+
+
+# reCAPTCHA v2解決関数
+def solve_recaptcha_v2():
+    try:
+        task_payload = {
+            "type": "RecaptchaV2TaskProxyless",
+            "websiteURL": WEBSITE_URL,
+            "websiteKey": WEBSITE_KEY_V2,
+        }
+        logging.info(f"Sending createTask request: {task_payload}")
+        response = requests.post(
+            "https://api.nextcaptcha.com/createTask",
+            json={"clientKey": CLIENT_KEY, "task": task_payload},
+            timeout=10,
+        )
+        response.raise_for_status()
+        result = response.json()
+        logging.debug(f"createTask response: {result}")
+
+        task_id = result.get("taskId")
+        if not task_id:
+            raise ValueError(f"Failed to create task: {result}")
+
+        for attempt in range(1, 21):
+            logging.info(
+                f"Waiting for task {task_id} to be solved... Attempt {attempt}/20"
+            )
+            time.sleep(5)  # ここでtime.sleep()を使用
+            response = requests.post(
+                "https://api.nextcaptcha.com/getTaskResult",
+                json={"clientKey": CLIENT_KEY, "taskId": task_id},
+                timeout=10,
+            )
+            response.raise_for_status()
+            result = response.json()
+            logging.debug(f"getTaskResult response: {result}")
+
+            if result.get("errorId") == 0 and result.get("status") == "ready":
+                logging.info(
+                    f"Task {task_id} solved successfully: {result['solution']}"
+                )
+                return result.get("solution", {}).get("gRecaptchaResponse")
+
+        logging.error(
+            f"Task {task_id} could not be solved after 20 retries. Response: {result}"
+        )
+        return None
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Request error occurred: {e}")
+        return None
+    except Exception as e:
+        logging.error(f"Error occurred: {e}")
+        return None
+
+
+# reCAPTCHAトークンを取得してフォームを送信
+recaptcha_v2_response = solve_recaptcha_v2()
+if recaptcha_v2_response:
+    logging.info(f"Using reCAPTCHA v2 token: {recaptcha_v2_response}")
+    print(f"Using reCAPTCHA v2 token: {recaptcha_v2_response}")
+
+    # Seleniumを使ってブラウザを操作
+    chrome_options = Options()
+    # chrome_options.add_argument("--headless")  # ヘッドレスモードでブラウザを表示しない
+    driver = webdriver.Chrome(
+        service=Service(ChromeDriverManager().install()), options=chrome_options
+    )
+
+    try:
+        # ページにアクセス
+        driver.get(WEBSITE_URL)
+
+        # reCAPTCHAの応答を設定
+        recaptcha_input = driver.find_element(By.NAME, "g-recaptcha-response")
+        driver.execute_script(
+            "arguments[0].value = arguments[1];", recaptcha_input, recaptcha_v2_response
+        )
+
+        # 送信ボタンをクリック
+        submit_button = driver.find_element(By.XPATH, "//*[text()='送信']")
+        submit_button.click()
+
+        logging.info("Form successfully submitted using Selenium.")
+        print("Form successfully submitted using Selenium.")
+
+        # 送信後の画面遷移を確認（遷移先ページのタイトルを取得）
+        wait = WebDriverWait(driver, 100)  # 最大100秒待機
+        new_page_title = wait.until(
+            EC.title_contains("遷移先ページのタイトル")
+        )  # ページタイトルの一部が一致するのを待つ
+        logging.info(f"Page title after form submission: {new_page_title}")
+        print(f"Page title after form submission: {new_page_title}")
+
+        # 画面遷移後に30秒待機
+        time.sleep(30)
+        logging.info("Waiting for 30 seconds after page transition.")
+        print("Waiting for 30 seconds after page transition.")
+
+    except Exception as e:
+        logging.error(f"Error occurred while interacting with the form: {e}")
+        print(f"Error occurred while interacting with the form: {e}")
+    finally:
+        driver.quit()
+else:
+    logging.error("Failed to solve reCAPTCHA v2.")
+    print("Failed to solve reCAPTCHA v2.")
